@@ -58,6 +58,12 @@ def init_db():
         )
     ''')
 
+    # Add profile_type column to existing databases that don't have it yet
+    try:
+        c.execute("ALTER TABLE profiles ADD COLUMN profile_type TEXT DEFAULT 'self'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     # Migrate data from old single-profile table if it exists
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='profile'")
     if c.fetchone():
@@ -67,8 +73,8 @@ def init_db():
             old = c.fetchone()
             if old and old[0]:
                 c.execute(
-                    "INSERT INTO profiles (name, style_document, profile_percentage, writing_samples, prompt_responses) VALUES (?,?,?,?,?)",
-                    ('My Profile', old[0], old[1], old[2], old[3])
+                    "INSERT INTO profiles (name, style_document, profile_percentage, writing_samples, prompt_responses, profile_type) VALUES (?,?,?,?,?,?)",
+                    ('My Profile', old[0], old[1], old[2], old[3], 'self')
                 )
 
     conn.commit()
@@ -94,7 +100,7 @@ def get_profile(profile_id=None):
         return None
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT id, name, style_document, profile_percentage, writing_samples, prompt_responses FROM profiles WHERE id=?', (profile_id,))
+    c.execute('SELECT id, name, style_document, profile_percentage, writing_samples, prompt_responses, profile_type FROM profiles WHERE id=?', (profile_id,))
     row = c.fetchone()
     conn.close()
     if not row:
@@ -106,6 +112,7 @@ def get_profile(profile_id=None):
         'profile_percentage': row[3] or 0,
         'writing_samples':    json.loads(row[4] or '[]'),
         'prompt_responses':   json.loads(row[5] or '[]'),
+        'profile_type':       row[6] or 'self',
     }
 
 
@@ -130,16 +137,17 @@ def save_profile(profile):
 def get_all_profiles():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT id, name, profile_percentage, writing_samples, prompt_responses, created_at FROM profiles ORDER BY created_at DESC')
+    c.execute('SELECT id, name, profile_percentage, writing_samples, prompt_responses, created_at, profile_type FROM profiles ORDER BY created_at DESC')
     rows = c.fetchall()
     conn.close()
     return [{
-        'id':               r[0],
-        'name':             r[1],
+        'id':                 r[0],
+        'name':               r[1],
         'profile_percentage': r[2] or 0,
-        'sample_count':     len(json.loads(r[3] or '[]')),
-        'response_count':   len(json.loads(r[4] or '[]')),
-        'created_at':       r[5],
+        'sample_count':       len(json.loads(r[3] or '[]')),
+        'response_count':     len(json.loads(r[4] or '[]')),
+        'created_at':         r[5],
+        'profile_type':       r[6] or 'self',
     } for r in rows]
 
 
@@ -152,18 +160,20 @@ def require_profile():
 
 @app.context_processor
 def inject_globals():
-    """Make active profile name available in every template."""
+    """Make active profile info available in every template."""
     pid = get_active_profile_id()
     active_name = None
+    active_type = 'self'
     if pid:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute('SELECT name FROM profiles WHERE id=?', (pid,))
+        c.execute('SELECT name, profile_type FROM profiles WHERE id=?', (pid,))
         row = c.fetchone()
         conn.close()
         if row:
             active_name = row[0]
-    return {'active_profile_name': active_name, 'active_profile_id': pid}
+            active_type = row[1] or 'self'
+    return {'active_profile_name': active_name, 'active_profile_id': pid, 'active_profile_type': active_type}
 
 
 # ─────────────────────────────────────────────
@@ -227,59 +237,75 @@ Output ONLY a single integer.''', max_tokens=10)
 def build_humanize_prompt(text, style_doc, feedback=None):
     feedback_section = ''
     if feedback:
-        feedback_section = f'\nFEEDBACK FROM PREVIOUS ATTEMPT — fix these specific issues:\n{feedback}\n'
-    return f'''You are rewriting text to sound exactly like a specific real human being. Your output must pass AI detection tools as 100% human-written.
+        feedback_section = f'\nFEEDBACK FROM PREVIOUS ATTEMPT — these exact issues must be fixed this time:\n{feedback}\n'
+    return f'''You are rewriting text to fool ZeroGPT and similar AI detectors. Your output must score under 10% AI.
 
-WRITING STYLE PROFILE:
+WRITING STYLE PROFILE FOR THIS PERSON:
 {style_doc}
 {feedback_section}
-STRICT RULES:
+THE #1 GIVEAWAY IS BURSTINESS — this is what ZeroGPT measures most:
+AI writes sentences of roughly equal length. Humans don't.
+You MUST mix: Short ones. Very short. One-word even. And then occasionally a much longer sentence that winds around and connects multiple ideas together the way a real person actually writes when they're just getting thoughts down without trying to sound polished or structured.
+Fragments are fine. Starting sentences with "And" or "But" is fine. Incomplete thoughts are fine.
 
-1. BANNED WORDS/PHRASES (AI giveaways — never use):
-   "Moreover", "Furthermore", "Additionally", "In conclusion", "It is worth noting",
-   "It's important to", "Notably", "Significantly", "Delve", "Leverage", "Utilize",
-   "Facilitate", "Endeavor", "In today's world", "In the modern era", "Landscape", "Realm"
+BANNED WORDS — ZeroGPT flags these as instant AI signals, never use them:
+"Moreover", "Furthermore", "Additionally", "In conclusion", "It is worth noting",
+"It's important to", "Notably", "Significantly", "Delve", "Leverage", "Utilize",
+"Facilitate", "Endeavor", "Landscape", "Realm", "Underscores", "Emphasizes",
+"It is essential", "One must", "We can see that", "This highlights", "It is clear",
+"It is important", "In today's world", "In the modern era"
 
-2. SENTENCE STRUCTURE — break AI patterns:
-   - Vary length dramatically — short punchy sentences mixed with longer ones
-   - Do NOT make every paragraph the same length
-   - Use contractions constantly (don't, it's, I've, they're, can't)
-   - Include incomplete thoughts or run-ons if that fits this person's style
+ALWAYS USE CONTRACTIONS — "don't" not "do not", "it's" not "it is", "can't", "won't", "I'm", "that's", "there's", "I've", "they're"
 
-3. SOUND HUMAN:
-   - Use the filler phrases and expressions from this person's profile
-   - Allow minor grammar imperfections if that matches how they write
-   - Do NOT over-explain — humans skip obvious context
-   - Add their natural tangents and asides where fitting
-   - Match their exact vocabulary level
+SOUND HUMAN:
+- Pull specific phrases and expressions directly from the style profile above
+- Leave minor imperfections — humans don't write perfectly
+- Don't over-explain. Humans leave obvious things unsaid.
+- Add the person's natural asides and tangents where they fit naturally
+- Match their exact vocabulary — if they use simple words, use simple words
 
-4. PRESERVE MEANING — all facts stay intact
+PRESERVE ALL MEANING — every fact and idea must stay intact
 
-5. OUTPUT ONLY the rewritten text. No commentary.
+OUTPUT ONLY the rewritten text. No labels, no commentary, no explanation whatsoever.
 
 TEXT TO REWRITE:
 {text}'''
 
 
 def score_text(text):
-    result = ask_claude(f'''You are an AI writing detection expert. Score this text.
+    result = ask_claude(f'''You are simulating ZeroGPT, an AI text detector. Score this text exactly as ZeroGPT would — be strict.
 
-Check for AI giveaways:
-- Formal transitions: Moreover, Furthermore, Additionally, In conclusion, Notably
-- Perfectly balanced sentence lengths with no variation
-- Overly polished grammar with zero natural imperfections
-- Formal vocabulary where casual would be natural
-- Generic filler: "It is worth noting", "It is important to"
-- Missing contractions (don't, it's, can't, I've)
-- All paragraphs same length
-- No personal quirks, tangents, or asides
+ZeroGPT primarily measures:
 
-Respond in this EXACT format:
-SCORE: [0-100, where 0=fully human, 100=obvious AI]
-ISSUES: [bullet list of AI patterns found, or "None"]
+1. BURSTINESS (most important): Variance in sentence length.
+   - AI = all sentences roughly the same length
+   - Human = wildly uneven: short, long, fragment, very long, short again
+   - If sentence lengths are similar throughout, score high.
 
-Text:
-{text}''', max_tokens=300)
+2. PERPLEXITY: How predictable the word choices are.
+   - AI = predictable, safe word choices
+   - Human = occasional surprising or informal word choices
+
+3. AI PHRASE PATTERNS: Moreover, Furthermore, Additionally, In conclusion,
+   Notably, Significantly, It is worth noting, It is important to, This highlights,
+   It is clear, One must, We can see that
+
+4. MISSING CONTRACTIONS: "do not" instead of "don't", "it is" instead of "it's"
+
+5. PERFECT GRAMMAR: Zero imperfections across the whole text is an AI signal
+
+6. UNIFORM PARAGRAPHS: All paragraphs the same length is an AI signal
+
+7. OVER-EXPLANATION: AI explains everything fully. Humans leave things implicit.
+
+Be strict — if in doubt, score higher. ZeroGPT typically scores AI-generated text between 40–100%.
+
+Respond in EXACTLY this format with nothing else:
+SCORE: [0-100, where 0=human, 100=obvious AI]
+ISSUES: [specific problems found as a short list, or "None" if score is under 15]
+
+Text to score:
+{text}''', max_tokens=400)
 
     score    = 50
     feedback = ''
@@ -339,7 +365,11 @@ def step1():
 def step2():
     redir = require_profile()
     if redir: return redir
-    return render_template('step2.html', profile=get_profile())
+    profile = get_profile()
+    # "Other" profiles skip Step 2 entirely — no prompts needed for historical figures
+    if profile and profile.get('profile_type') == 'other':
+        return redirect('/step3')
+    return render_template('step2.html', profile=profile)
 
 
 @app.route('/step3')
@@ -356,7 +386,10 @@ def step3():
 @app.route('/api/profiles/create', methods=['POST'])
 def create_profile():
     data = request.get_json()
-    name = data.get('name', '').strip()
+    name         = data.get('name', '').strip()
+    profile_type = data.get('profile_type', 'self')
+    if profile_type not in ('self', 'other'):
+        profile_type = 'self'
     if not name:
         return jsonify({'error': 'Please enter a name for this profile.'}), 400
 
@@ -367,7 +400,7 @@ def create_profile():
         conn.close()
         return jsonify({'error': f'Maximum of {MAX_PROFILES} profiles reached. Delete one to add another.'}), 400
 
-    c.execute('INSERT INTO profiles (name) VALUES (?)', (name,))
+    c.execute('INSERT INTO profiles (name, profile_type) VALUES (?, ?)', (name, profile_type))
     new_id = c.lastrowid
     conn.commit()
     conn.close()

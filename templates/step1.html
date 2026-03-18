@@ -4,11 +4,16 @@
 {% block content %}
 
 <div class="card">
-    <h1>Step 1 — Upload Your Writing</h1>
+    <h1>Step 1 — Upload Writing Samples</h1>
     <p style="margin-bottom: 28px;">
+        {% if profile.profile_type == 'other' %}
+        Upload files containing writing by <strong>{{ profile.name }}</strong> — speeches, letters, books, articles, anything they wrote.
+        The AI will analyze their style and voice. Supports <strong>.txt</strong>, <strong>.docx</strong>, and <strong>.pdf</strong>.
+        {% else %}
         Upload files containing writing <em>you</em> personally wrote — emails, essays, journal entries, messages, anything.
         The AI will read them and build a model of how you naturally write.
         Supports <strong>.txt</strong>, <strong>.docx</strong>, and <strong>.pdf</strong> files.
+        {% endif %}
     </p>
 
     <!-- Drop Zone -->
@@ -37,16 +42,20 @@
 
     <!-- Actions -->
     <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-        <button id="analyze-btn" class="btn btn-primary" disabled>Analyze My Writing</button>
+        <button id="analyze-btn" class="btn btn-primary" disabled>Analyze Writing</button>
         {% if profile.style_document %}
-        <a href="/step2" class="btn btn-success">Continue to Step 2 →</a>
+            {% if profile.profile_type == 'other' %}
+            <a href="/step3" class="btn btn-success">Continue to Humanize →</a>
+            {% else %}
+            <a href="/step2" class="btn btn-success">Continue to Step 2 →</a>
+            {% endif %}
         {% endif %}
     </div>
 
     {% if profile.style_document %}
     <div class="alert alert-success" style="margin-top: 20px;">
-        ✓ A writing profile already exists at <strong>{{ profile.profile_percentage }}% confidence</strong>.
-        You can upload more files to improve it, or continue to Step 2.
+        ✓ Profile exists at <strong>{{ profile.profile_percentage }}% confidence</strong>.
+        Upload more files to improve it, or continue.
     </div>
     {% endif %}
 </div>
@@ -54,12 +63,22 @@
 <!-- Tips Card -->
 <div class="card" style="padding: 24px 32px;">
     <h2 style="margin-bottom: 12px;">Tips for best results</h2>
+    {% if profile.profile_type == 'other' %}
     <ul style="color: #64748b; font-size: 14px; line-height: 2; padding-left: 20px;">
-        <li>Upload writing that is casual and personal — not formal reports or academic papers (unless that is your style)</li>
-        <li>More text = better results. Aim for at least 500–1000 words total across all files</li>
-        <li>Emails, messages, blog posts, and journal entries work especially well</li>
-        <li>You can come back and upload more files at any time</li>
+        <li>More text = better results. Aim for at least 1,000 words total</li>
+        <li>Upload diverse samples — speeches, letters, and personal writings all help</li>
+        <li>Avoid texts that were heavily edited by others — the closer to their raw voice the better</li>
+        <li>You can upload more files at any time to improve the profile</li>
+        <li>Once uploaded, go straight to Step 2 (Humanize) — no prompts needed</li>
     </ul>
+    {% else %}
+    <ul style="color: #64748b; font-size: 14px; line-height: 2; padding-left: 20px;">
+        <li>Upload writing that is casual and personal — not formal reports (unless that is your style)</li>
+        <li>More text = better results. Aim for at least 500–1,000 words total across all files</li>
+        <li>Emails, messages, blog posts, and journal entries work especially well</li>
+        <li>You can add more files at any time — each one improves the profile</li>
+    </ul>
+    {% endif %}
 </div>
 
 <script>
@@ -94,20 +113,43 @@ dropZone.addEventListener('drop', e => {
 });
 
 function handleFiles(files) {
-    selectedFiles = Array.from(files);
+    const incoming = Array.from(files);
+    // Merge with existing — skip duplicates by filename
+    incoming.forEach(f => {
+        if (!selectedFiles.find(existing => existing.name === f.name)) {
+            selectedFiles.push(f);
+        }
+    });
     if (selectedFiles.length === 0) return;
 
     fileList.classList.remove('hidden');
-    filesDiv.innerHTML = selectedFiles.map(f => `
+    renderFileList();
+    analyzeBtn.disabled = false;
+}
+
+function renderFileList() {
+    filesDiv.innerHTML = selectedFiles.map((f, i) => `
         <div style="display:flex; align-items:center; gap:10px; padding:10px 14px;
                     background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0; font-size:14px;">
             <span style="font-size:18px;">${fileIcon(f.name)}</span>
             <span style="font-weight:500; flex:1;">${f.name}</span>
-            <span style="color:#94a3b8;">${(f.size / 1024).toFixed(1)} KB</span>
+            <span style="color:#94a3b8; margin-right:8px;">${(f.size / 1024).toFixed(1)} KB</span>
+            <button onclick="removeFile(${i})"
+                    style="background:none; border:none; cursor:pointer; color:#94a3b8;
+                           font-size:16px; line-height:1; padding:2px 4px;"
+                    title="Remove">✕</button>
         </div>
     `).join('');
+}
 
-    analyzeBtn.disabled = false;
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    if (selectedFiles.length === 0) {
+        fileList.classList.add('hidden');
+        analyzeBtn.disabled = true;
+    } else {
+        renderFileList();
+    }
 }
 
 function fileIcon(name) {
@@ -134,10 +176,12 @@ analyzeBtn.addEventListener('click', async () => {
         if (data.error) {
             messageDiv.innerHTML = `<div class="alert alert-error">❌ ${data.error}</div>`;
         } else {
+            const nextStep  = '{{ profile.profile_type }}' === 'other' ? '/step3' : '/step2';
+            const nextLabel = '{{ profile.profile_type }}' === 'other' ? 'Continue to Humanize →' : 'Continue to Step 2 →';
             messageDiv.innerHTML = `
                 <div class="alert alert-success">
                     ✓ Analysis complete! Profile confidence: <strong>${data.percentage}%</strong>.
-                    <a href="/step2">Continue to Step 2 →</a>
+                    <a href="${nextStep}">${nextLabel}</a>
                 </div>`;
         }
     } catch (err) {

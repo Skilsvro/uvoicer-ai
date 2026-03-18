@@ -21,14 +21,36 @@
 </div>
 
 <!-- New Profile Form (hidden by default) -->
-<div id="new-profile-form" class="card hidden" style="padding:24px; margin-bottom:24px;">
-    <h2 style="margin-bottom:16px;">Create New Profile</h2>
-    <p style="margin-bottom:20px; font-size:14px;">
-        Enter the name of the person whose voice you want to capture —
-        yourself, a historical figure, a public figure, anyone.
-    </p>
+<div id="new-profile-form" class="card hidden" style="padding:28px; margin-bottom:24px;">
+    <h2 style="margin-bottom:6px;">Create New Profile</h2>
+    <p style="margin-bottom:24px; font-size:14px;">Who is this profile for?</p>
+
+    <!-- Type Selector -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
+        <div id="type-self" onclick="selectType('self')"
+             style="border:2px solid #6366f1; border-radius:12px; padding:18px 16px; cursor:pointer;
+                    background:#f5f3ff; transition:all 0.15s;">
+            <div style="font-size:24px; margin-bottom:8px;">🙋</div>
+            <div style="font-weight:700; font-size:15px; color:#1e293b; margin-bottom:4px;">Myself</div>
+            <div style="font-size:13px; color:#64748b; line-height:1.4;">
+                I'll upload my own writing and respond to prompts to train the AI on my personal voice.
+            </div>
+        </div>
+        <div id="type-other" onclick="selectType('other')"
+             style="border:2px solid #e2e8f0; border-radius:12px; padding:18px 16px; cursor:pointer;
+                    background:#fff; transition:all 0.15s;">
+            <div style="font-size:24px; margin-bottom:8px;">🏛️</div>
+            <div style="font-weight:700; font-size:15px; color:#1e293b; margin-bottom:4px;">Someone Else</div>
+            <div style="font-size:13px; color:#64748b; line-height:1.4;">
+                A historical figure, public figure, or anyone else. I'll upload their existing writings only.
+            </div>
+        </div>
+    </div>
+
+    <input type="hidden" id="profile-type-input" value="self">
+
     <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <input id="profile-name-input" type="text" placeholder="e.g. Shakespeare, Abraham Lincoln, Me..."
+        <input id="profile-name-input" type="text" placeholder="e.g. Abraham Lincoln, Shakespeare, or your name..."
                style="flex:1; min-width:220px; padding:11px 16px; border:1.5px solid #e2e8f0; border-radius:9px;
                       font-size:15px; font-family:inherit; outline:none; transition:border-color 0.15s;"
                maxlength="40">
@@ -73,9 +95,18 @@
             <div style="font-size:12px; font-weight:700; color:#6366f1; min-width:32px;">{{ p.profile_percentage }}%</div>
         </div>
 
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            {% if p.profile_type == 'other' %}
+            <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
+                         background:#fef3c7; color:#b45309; border:1px solid #fde68a;">HISTORICAL / OTHER</span>
+            {% else %}
+            <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
+                         background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">PERSONAL</span>
+            {% endif %}
+        </div>
         <div style="font-size:12px; color:#94a3b8; margin-bottom:16px;">
-            {{ p.sample_count }} file{% if p.sample_count != 1 %}s{% endif %} ·
-            {{ p.response_count }} prompt{% if p.response_count != 1 %}s{% endif %}
+            {{ p.sample_count }} file{% if p.sample_count != 1 %}s{% endif %}
+            {% if p.profile_type == 'self' %} · {{ p.response_count }} prompt{% if p.response_count != 1 %}s{% endif %}{% endif %}
         </div>
 
         <!-- Actions -->
@@ -140,10 +171,31 @@ if (nameInput) {
     nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('create-profile-btn').click(); });
 }
 
+// ── Type selector ──
+function selectType(type) {
+    document.getElementById('profile-type-input').value = type;
+    const selfCard  = document.getElementById('type-self');
+    const otherCard = document.getElementById('type-other');
+    if (type === 'self') {
+        selfCard.style.borderColor  = '#6366f1';
+        selfCard.style.background   = '#f5f3ff';
+        otherCard.style.borderColor = '#e2e8f0';
+        otherCard.style.background  = '#fff';
+        nameInput.placeholder = 'Your name or nickname…';
+    } else {
+        otherCard.style.borderColor = '#6366f1';
+        otherCard.style.background  = '#f5f3ff';
+        selfCard.style.borderColor  = '#e2e8f0';
+        selfCard.style.background   = '#fff';
+        nameInput.placeholder = 'e.g. Abraham Lincoln, Shakespeare, Einstein…';
+    }
+}
+
 // ── Create profile ──
 document.getElementById('create-profile-btn').addEventListener('click', async () => {
-    const name = nameInput.value.trim();
-    const msgDiv = document.getElementById('create-message');
+    const name        = nameInput.value.trim();
+    const profileType = document.getElementById('profile-type-input').value;
+    const msgDiv      = document.getElementById('create-message');
 
     if (!name) {
         msgDiv.innerHTML = '<div class="alert alert-error">Please enter a name.</div>';
@@ -158,7 +210,7 @@ document.getElementById('create-profile-btn').addEventListener('click', async ()
         const res  = await fetch('/api/profiles/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name }),
+            body: JSON.stringify({ name, profile_type: profileType }),
         });
         const data = await res.json();
 
