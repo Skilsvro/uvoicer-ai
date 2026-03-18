@@ -11,9 +11,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Persistent secret key so sessions survive server restarts ──
+# Allow DATA_DIR to be overridden by environment variable (for Railway volume mounts)
+DATA_DIR  = Path(os.getenv('DATA_DIR', 'data'))
+DB_PATH   = DATA_DIR / 'profile.db'
 _KEY_FILE = DATA_DIR / 'secret.key'
 
+# ── Persistent secret key so sessions survive server restarts ──
 def _load_secret_key():
     # Prefer SECRET_KEY environment variable (set this in Railway dashboard)
     env_key = os.getenv('SECRET_KEY')
@@ -29,10 +32,6 @@ app = Flask(__name__)
 app.secret_key = _load_secret_key()
 
 client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
-
-# Allow DATA_DIR to be overridden by environment variable (for Railway volume mounts)
-DATA_DIR = Path(os.getenv('DATA_DIR', 'data'))
-DB_PATH  = DATA_DIR / 'profile.db'
 MODEL    = 'claude-sonnet-4-6'
 MAX_PROFILES = 10
 
