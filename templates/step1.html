@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% set active_step = 1 %}
+
+{% block content %}
+
+<div class="card">
+    <h1>Step 1 — Upload Your Writing</h1>
+    <p style="margin-bottom: 28px;">
+        Upload files containing writing <em>you</em> personally wrote — emails, essays, journal entries, messages, anything.
+        The AI will read them and build a model of how you naturally write.
+        Supports <strong>.txt</strong>, <strong>.docx</strong>, and <strong>.pdf</strong> files.
+    </p>
+
+    <!-- Drop Zone -->
+    <div id="drop-zone"
+         style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 52px 24px;
+                text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 24px;
+                background: #fafbff;">
+        <div style="font-size: 40px; margin-bottom: 12px;">📂</div>
+        <div style="font-weight: 600; font-size: 16px; margin-bottom: 6px; color: #334155;">
+            Drop files here, or click to browse
+        </div>
+        <div style="font-size: 13px; color: #94a3b8;">
+            You can upload multiple files at once
+        </div>
+        <input type="file" id="file-input" multiple style="display:none">
+    </div>
+
+    <!-- Selected File List -->
+    <div id="file-list" class="hidden" style="margin-bottom: 24px;">
+        <h2>Selected Files</h2>
+        <div id="files-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
+    </div>
+
+    <!-- Messages -->
+    <div id="message"></div>
+
+    <!-- Actions -->
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <button id="analyze-btn" class="btn btn-primary" disabled>Analyze My Writing</button>
+        {% if profile.style_document %}
+        <a href="/step2" class="btn btn-success">Continue to Step 2 →</a>
+        {% endif %}
+    </div>
+
+    {% if profile.style_document %}
+    <div class="alert alert-success" style="margin-top: 20px;">
+        ✓ A writing profile already exists at <strong>{{ profile.profile_percentage }}% confidence</strong>.
+        You can upload more files to improve it, or continue to Step 2.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Tips Card -->
+<div class="card" style="padding: 24px 32px;">
+    <h2 style="margin-bottom: 12px;">Tips for best results</h2>
+    <ul style="color: #64748b; font-size: 14px; line-height: 2; padding-left: 20px;">
+        <li>Upload writing that is casual and personal — not formal reports or academic papers (unless that is your style)</li>
+        <li>More text = better results. Aim for at least 500–1000 words total across all files</li>
+        <li>Emails, messages, blog posts, and journal entries work especially well</li>
+        <li>You can come back and upload more files at any time</li>
+    </ul>
+</div>
+
+<script>
+const dropZone    = document.getElementById('drop-zone');
+const fileInput   = document.getElementById('file-input');
+const fileList    = document.getElementById('file-list');
+const filesDiv    = document.getElementById('files-container');
+const analyzeBtn  = document.getElementById('analyze-btn');
+const messageDiv  = document.getElementById('message');
+
+let selectedFiles = [];
+
+// ── Open file picker on click ──
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+// ── Drag-and-drop styling ──
+dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.style.borderColor  = '#6366f1';
+    dropZone.style.background   = '#f5f3ff';
+});
+dropZone.addEventListener('dragleave', () => {
+    dropZone.style.borderColor = '#cbd5e1';
+    dropZone.style.background  = '#fafbff';
+});
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#cbd5e1';
+    dropZone.style.background  = '#fafbff';
+    handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(files) {
+    selectedFiles = Array.from(files);
+    if (selectedFiles.length === 0) return;
+
+    fileList.classList.remove('hidden');
+    filesDiv.innerHTML = selectedFiles.map(f => `
+        <div style="display:flex; align-items:center; gap:10px; padding:10px 14px;
+                    background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0; font-size:14px;">
+            <span style="font-size:18px;">${fileIcon(f.name)}</span>
+            <span style="font-weight:500; flex:1;">${f.name}</span>
+            <span style="color:#94a3b8;">${(f.size / 1024).toFixed(1)} KB</span>
+        </div>
+    `).join('');
+
+    analyzeBtn.disabled = false;
+}
+
+function fileIcon(name) {
+    if (name.endsWith('.pdf'))  return '📕';
+    if (name.endsWith('.docx')) return '📘';
+    return '📄';
+}
+
+// ── Upload & Analyze ──
+analyzeBtn.addEventListener('click', async () => {
+    if (selectedFiles.length === 0) return;
+
+    analyzeBtn.disabled = true;
+    analyzeBtn.innerHTML = '<div class="spinner"></div><span>Analyzing…</span>';
+    messageDiv.innerHTML = '<div class="alert alert-info">⏳ Analyzing your writing style… this usually takes 20–40 seconds.</div>';
+
+    const formData = new FormData();
+    selectedFiles.forEach(f => formData.append('files', f));
+
+    try {
+        const res  = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.error) {
+            messageDiv.innerHTML = `<div class="alert alert-error">❌ ${data.error}</div>`;
+        } else {
+            messageDiv.innerHTML = `
+                <div class="alert alert-success">
+                    ✓ Analysis complete! Profile confidence: <strong>${data.percentage}%</strong>.
+                    <a href="/step2">Continue to Step 2 →</a>
+                </div>`;
+        }
+    } catch (err) {
+        messageDiv.innerHTML = '<div class="alert alert-error">❌ Something went wrong. Is the server running and is your API key set?</div>';
+    }
+
+    analyzeBtn.disabled = false;
+    analyzeBtn.innerHTML = 'Analyze My Writing';
+});
+</script>
+
+{% endblock %}

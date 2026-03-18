@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UVOICER.AI</title>
+    <style>
+        /* ── Reset & Base ── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+
+        /* ── Navigation ── */
+        nav {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .nav-logo {
+            font-size: 19px;
+            font-weight: 800;
+            color: #6366f1;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-logo span {
+            color: #a5b4fc;
+            font-weight: 400;
+        }
+
+        .nav-steps {
+            display: flex;
+            gap: 4px;
+        }
+
+        .nav-step {
+            padding: 8px 18px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: #64748b;
+            transition: all 0.15s;
+        }
+
+        .nav-step:hover  { background: #f8fafc; color: #1e293b; }
+        .nav-step.active { background: #6366f1; color: #ffffff; }
+
+        /* ── Layout ── */
+        .container {
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: #ffffff;
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            padding: 32px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        /* ── Typography ── */
+        h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.4px; margin-bottom: 8px; }
+        h2 { font-size: 17px; font-weight: 600; margin-bottom: 14px; }
+        p  { color: #64748b; line-height: 1.65; font-size: 15px; }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 22px;
+            border-radius: 9px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn-primary            { background: #6366f1; color: #fff; }
+        .btn-primary:hover      { background: #4f46e5; transform: translateY(-1px); }
+        .btn-primary:disabled   { background: #c7d2fe; cursor: not-allowed; transform: none; }
+
+        .btn-secondary          { background: #f1f5f9; color: #334155; }
+        .btn-secondary:hover    { background: #e2e8f0; }
+
+        .btn-success            { background: #10b981; color: #fff; }
+        .btn-success:hover      { background: #059669; transform: translateY(-1px); }
+
+        /* ── Alerts ── */
+        .alert {
+            padding: 13px 16px;
+            border-radius: 9px;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        .alert a { font-weight: 600; }
+
+        .alert-error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .alert-error a { color: #b91c1c; }
+
+        .alert-success   { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .alert-success a { color: #15803d; }
+
+        .alert-info   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .alert-info a { color: #1d4ed8; }
+
+        /* ── Spinner ── */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2.5px solid rgba(255,255,255,0.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+        .spinner-dark {
+            border-color: rgba(99,102,241,0.25);
+            border-top-color: #6366f1;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Footer ── */
+        footer {
+            background: #1e293b;
+            color: #94a3b8;
+            margin-top: 80px;
+            padding: 48px 32px 36px;
+            text-align: center;
+        }
+
+        .footer-logo {
+            font-size: 22px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+            margin-bottom: 6px;
+        }
+
+        .footer-logo span {
+            color: #818cf8;
+            font-weight: 400;
+        }
+
+        .footer-tagline {
+            font-size: 13px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 24px;
+        }
+
+        .footer-divider {
+            width: 48px;
+            height: 2px;
+            background: #6366f1;
+            margin: 0 auto 24px;
+            border-radius: 2px;
+        }
+
+        .footer-mission {
+            max-width: 620px;
+            margin: 0 auto 28px;
+            font-size: 15px;
+            line-height: 1.8;
+            color: #94a3b8;
+        }
+
+        .footer-mission strong {
+            color: #c7d2fe;
+        }
+
+        .footer-bottom {
+            font-size: 12px;
+            color: #475569;
+            margin-top: 8px;
+        }
+
+        /* ── Utilities ── */
+        .hidden { display: none !important; }
+
+        textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 15px;
+            font-family: inherit;
+            line-height: 1.6;
+            resize: vertical;
+            outline: none;
+            color: #1e293b;
+            transition: border-color 0.15s;
+            background: #fafafa;
+        }
+        textarea:focus { border-color: #6366f1; background: #fff; }
+        textarea::placeholder { color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/" class="nav-logo" style="text-decoration:none;">UVOICER<span>.AI</span></a>
+
+        <div style="display:flex; align-items:center; gap:16px;">
+            {% if active_profile_name %}
+            <a href="/profiles"
+               style="display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600;
+                      color:#64748b; text-decoration:none; padding:6px 12px; border-radius:8px;
+                      border:1px solid #e2e8f0; transition:all 0.15s; background:#f8fafc;"
+               title="Switch profile">
+                <span style="width:22px; height:22px; border-radius:6px; background:linear-gradient(135deg,#6366f1,#8b5cf6);
+                             display:inline-flex; align-items:center; justify-content:center;
+                             font-size:11px; font-weight:800; color:#fff;">
+                    {{ active_profile_name[0].upper() }}
+                </span>
+                {{ active_profile_name }}
+                <span style="color:#94a3b8; font-size:11px;">▼</span>
+            </a>
+            {% endif %}
+
+            <div class="nav-steps">
+                <a href="/step1" class="nav-step {% if active_step == 1 %}active{% endif %}">1 · Upload</a>
+                <a href="/step2" class="nav-step {% if active_step == 2 %}active{% endif %}">2 · Build Profile</a>
+                <a href="/step3" class="nav-step {% if active_step == 3 %}active{% endif %}">3 · Humanize</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer>
+        <div class="footer-logo">UVOICER<span>.AI</span></div>
+        <div class="footer-tagline">Voice Intelligence Platform</div>
+        <div class="footer-divider"></div>
+        <p class="footer-mission">
+            UVOICER.AI was built on a simple but powerful idea — that every person, and every figure throughout
+            history, had a <strong>unique voice</strong>. Our mission is to harness
+            <strong>leading-edge AI technology</strong> to study, preserve, and replicate the writing styles
+            and voices of the people who shaped the world. Whether you are a researcher exploring the prose of
+            a historical figure, a writer seeking to understand a literary giant, or simply someone who wants
+            their own voice represented authentically in the digital age — UVOICER.AI gives you the tools to
+            make that possible.
+        </p>
+        <div class="footer-bottom">
+            &copy; {{ 2026 }} UVOICER.AI &nbsp;·&nbsp; Powered by Claude AI
+        </div>
+    </footer>
+
+</body>
+</html>

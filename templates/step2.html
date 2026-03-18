@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% set active_step = 2 %}
+
+{% block content %}
+
+<!-- ── Profile Confidence Bar ── -->
+<div class="card" style="padding: 24px 32px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+        <div>
+            <h2 style="margin-bottom:4px;">Profile Confidence</h2>
+            <div id="pct-label" style="font-size:14px; color:#64748b; font-weight:500;">Loading…</div>
+        </div>
+        <div id="pct-badge"
+             style="font-size:34px; font-weight:800; color:#6366f1; line-height:1; min-width:70px; text-align:right;">
+            {{ profile.profile_percentage }}%
+        </div>
+    </div>
+
+    <!-- Progress bar track -->
+    <div style="height:12px; background:#e2e8f0; border-radius:999px; overflow:hidden;">
+        <div id="progress-bar"
+             style="height:100%; width:{{ profile.profile_percentage }}%;
+                    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+                    border-radius:999px; transition: width 1s ease;"></div>
+    </div>
+
+    <div id="pct-description" style="font-size:13px; color:#94a3b8; margin-top:8px;"></div>
+</div>
+
+<!-- ── Prompt & Response ── -->
+<div class="card">
+    <h1>Step 2 — Build Your Profile</h1>
+    <p style="margin-bottom:24px;">
+        Respond to the prompt below in your own natural voice — write like you normally would, not like you are trying to sound good.
+        The AI reads your responses to learn how you express yourself. Write at least <strong>100 words</strong> (maximum 500).
+        The more detail and personality you put in, the more accurately the AI will learn your style.
+    </p>
+
+    <!-- Prompt Display -->
+    <div id="prompt-box"
+         style="background:#f5f3ff; border:1.5px solid #ddd6fe; border-radius:11px;
+                padding:20px 22px; margin-bottom:20px;">
+        <div style="font-size:11px; font-weight:700; color:#7c3aed; text-transform:uppercase;
+                    letter-spacing:0.8px; margin-bottom:8px;">Your Prompt</div>
+        <div id="prompt-text"
+             style="font-size:16px; font-weight:500; color:#1e293b; line-height:1.55;">
+            Loading prompt…
+        </div>
+    </div>
+
+    <!-- Text Area -->
+    <textarea id="response-input" rows="10"
+              placeholder="Write your response here in your natural voice…"></textarea>
+
+    <!-- Word count + buttons -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; flex-wrap:wrap; gap:10px;">
+        <div id="word-count" style="font-size:13px; color:#94a3b8; font-weight:500;">
+            0 / 100 words minimum
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button id="new-prompt-btn" class="btn btn-secondary">New Prompt</button>
+            <button id="submit-btn" class="btn btn-primary" disabled>Submit Response</button>
+        </div>
+    </div>
+
+    <!-- Message area -->
+    <div id="message" style="margin-top:16px;"></div>
+</div>
+
+<!-- ── Previous Responses ── -->
+<div id="history-section" class="hidden card">
+    <h2>Completed Responses</h2>
+    <p style="margin-bottom:16px;">Each response you submit helps the AI learn more about how you write.</p>
+    <div id="history-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+</div>
+
+<!-- ── Navigation ── -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+    <a href="/step1" class="btn btn-secondary">← Back to Upload</a>
+    <a href="/step3" class="btn btn-success">Continue to Step 3 →</a>
+</div>
+
+<script>
+// ── State ──
+let currentPrompt       = '';
+let completedResponses  = {{ profile.prompt_responses | tojson }};
+
+// ── Initialise ──
+updateProfileBar({{ profile.profile_percentage }});
+if (completedResponses.length > 0) renderHistory();
+loadPrompt();
+
+// ── Load a writing prompt from the API ──
+async function loadPrompt() {
+    document.getElementById('prompt-text').textContent = 'Loading prompt…';
+    document.getElementById('response-input').value = '';
+    document.getElementById('message').innerHTML = '';
+    updateWordCount();
+
+    try {
+        const res  = await fetch('/api/get_prompt');
+        const data = await res.json();
+        currentPrompt = data.prompt;
+        document.getElementById('prompt-text').textContent = currentPrompt;
+    } catch {
+        currentPrompt = 'Tell me about a place that has always felt special to you and why.';
+        document.getElementById('prompt-text').textContent = currentPrompt;
+    }
+}
+
+// ── New prompt button ──
+document.getElementById('new-prompt-btn').addEventListener('click', loadPrompt);
+
+// ── Word count live update ──
+document.getElementById('response-input').addEventListener('input', updateWordCount);
+
+function updateWordCount() {
+    const text  = document.getElementById('response-input').value.trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    const el    = document.getElementById('word-count');
+
+    if (words > 500) {
+        el.textContent = `${words} / 500 words maximum — please shorten your response`;
+        el.style.color = '#b91c1c';
+        document.getElementById('submit-btn').disabled = true;
+    } else if (words >= 100) {
+        el.textContent = `${words} words ✓`;
+        el.style.color = '#15803d';
+        document.getElementById('submit-btn').disabled = false;
+    } else {
+        el.textContent = `${words} / 100 words minimum`;
+        el.style.color = '#94a3b8';
+        document.getElementById('submit-btn').disabled = true;
+    }
+}
+
+// ── Submit response ──
+document.getElementById('submit-btn').addEventListener('click', async () => {
+    const responseText  = document.getElementById('response-input').value.trim();
+    const submitBtn     = document.getElementById('submit-btn');
+    const messageDiv    = document.getElementById('message');
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<div class="spinner"></div><span>Updating profile…</span>';
+    messageDiv.innerHTML = '<div class="alert alert-info">⏳ Analysing your response and updating your profile… this takes about 20–30 seconds.</div>';
+
+    try {
+        const res = await fetch('/api/submit_response', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ prompt: currentPrompt, response: responseText }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+            messageDiv.innerHTML = `<div class="alert alert-error">❌ ${data.error}</div>`;
+        } else {
+            completedResponses.push({ prompt: currentPrompt, response: responseText });
+            renderHistory();
+            updateProfileBar(data.percentage);
+            messageDiv.innerHTML = `
+                <div class="alert alert-success">
+                    ✓ Profile updated! Confidence is now <strong>${data.percentage}%</strong>.
+                    You can respond to another prompt, or
+                    <a href="/step3">continue to Step 3 →</a>
+                </div>`;
+            await loadPrompt();
+        }
+    } catch {
+        messageDiv.innerHTML = '<div class="alert alert-error">❌ Something went wrong. Please try again.</div>';
+    }
+
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = 'Submit Response';
+});
+
+// ── Update the profile confidence bar ──
+function updateProfileBar(pct) {
+    document.getElementById('pct-badge').textContent    = pct + '%';
+    document.getElementById('progress-bar').style.width = pct + '%';
+
+    let color, label, desc;
+
+    if (pct === 0) {
+        color = '#94a3b8';
+        label = 'No profile yet';
+        desc  = 'Upload writing samples or respond to a prompt to get started.';
+    } else if (pct < 25) {
+        color = '#f59e0b';
+        label = 'Just getting started';
+        desc  = 'The AI knows very little about your style. More writing samples will help significantly.';
+    } else if (pct < 50) {
+        color = '#f59e0b';
+        label = 'Building a foundation';
+        desc  = 'Some patterns are emerging. Keep writing to sharpen the profile.';
+    } else if (pct < 70) {
+        color = '#3b82f6';
+        label = 'Decent understanding';
+        desc  = 'The AI has a reasonable grasp of your style, but more data will make humanized output better.';
+    } else if (pct < 88) {
+        color = '#10b981';
+        label = 'Strong profile';
+        desc  = 'The AI has a solid understanding of your voice. Results should be convincing.';
+    } else {
+        color = '#6366f1';
+        label = 'Excellent profile!';
+        desc  = 'The AI can closely predict how you would write on almost any topic.';
+    }
+
+    document.getElementById('pct-badge').style.color       = color;
+    document.getElementById('progress-bar').style.background = `linear-gradient(90deg, ${color}, ${color}cc)`;
+    document.getElementById('pct-label').textContent        = label;
+    document.getElementById('pct-description').textContent  = desc;
+}
+
+// ── Render completed response history ──
+function renderHistory() {
+    const section = document.getElementById('history-section');
+    const list    = document.getElementById('history-list');
+
+    if (completedResponses.length === 0) { section.classList.add('hidden'); return; }
+    section.classList.remove('hidden');
+
+    list.innerHTML = completedResponses.map((r, i) => `
+        <div style="border:1px solid #e2e8f0; border-radius:10px; padding:16px; background:#fafafa;">
+            <div style="font-size:11px; font-weight:700; color:#6366f1; text-transform:uppercase;
+                        letter-spacing:0.6px; margin-bottom:6px;">Response ${i + 1}</div>
+            <div style="font-size:14px; font-weight:600; color:#334155; margin-bottom:8px;">${r.prompt}</div>
+            <div style="font-size:13px; color:#64748b; line-height:1.55;">
+                ${r.response.length > 220 ? r.response.substring(0, 220) + '…' : r.response}
+            </div>
+        </div>
+    `).join('');
+}
+</script>
+
+{% endblock %}

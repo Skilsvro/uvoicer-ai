@@ -1,0 +1,6 @@
+flask
+anthropic
+python-docx
+pdfplumber
+python-dotenv
+gunicorn

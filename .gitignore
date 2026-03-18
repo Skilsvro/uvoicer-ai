@@ -1,0 +1,23 @@
+# Environment variables — never commit your API keys
+.env
+
+# Local database and secrets — use Railway volumes for persistence
+data/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Test files
+test_api.py
+
+# OS files
+.DS_Store
+Thumbs.db

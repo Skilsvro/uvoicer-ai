@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% set active_step = 3 %}
+
+{% block content %}
+
+<!-- ── Profile Status Strip ── -->
+<div class="card" style="padding:18px 28px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div style="display:flex; align-items:center; gap:14px;">
+        <div style="width:42px; height:42px; border-radius:50%; background:#f0f0ff;
+                    display:flex; align-items:center; justify-content:center; font-size:20px;">✍️</div>
+        <div>
+            <div style="font-weight:600; font-size:15px; color:#1e293b;">Your Writing Profile</div>
+            <div style="font-size:13px; color:#64748b; margin-top:2px;">
+                {% if profile.style_document %}
+                    {{ profile.profile_percentage }}% confidence
+                    · {{ profile.writing_samples | length }} file(s)
+                    · {{ profile.prompt_responses | length }} response(s)
+                {% else %}
+                    No profile yet — complete Steps 1 &amp; 2 first
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px;">
+        {% if profile.style_document %}
+        <div style="width:130px; height:8px; background:#e2e8f0; border-radius:999px; overflow:hidden;">
+            <div style="width:{{ profile.profile_percentage }}%; height:100%;
+                        background:linear-gradient(90deg,#6366f1,#8b5cf6); border-radius:999px;"></div>
+        </div>
+        {% endif %}
+        <a href="/step2" style="font-size:13px; color:#6366f1; text-decoration:none; font-weight:600;">
+            Improve profile →
+        </a>
+    </div>
+</div>
+
+<!-- ── No Profile Warning ── -->
+{% if not profile.style_document %}
+<div class="alert alert-error">
+    ⚠️ You have not created a writing profile yet.
+    <a href="/step1">Go to Step 1 to upload your writing →</a>
+</div>
+{% endif %}
+
+<!-- ── Humanizer ── -->
+<div class="card">
+    <h1>Step 3 — Humanize Writing</h1>
+    <p style="margin-bottom:28px;">
+        Paste any text — AI-generated content, something you want to sound more like you,
+        or any writing you want rewritten in your personal voice.
+        Click <strong>Run</strong> and the AI will rewrite it to match your style.
+    </p>
+
+    <!-- Two-column editor layout -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+        <!-- Input -->
+        <div>
+            <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
+                        letter-spacing:0.7px; margin-bottom:8px;">Input Text</div>
+            <textarea id="input-text" rows="14"
+                      placeholder="Paste the text you want to humanize…"></textarea>
+            <div id="input-count" style="font-size:12px; color:#94a3b8; margin-top:6px; text-align:right;">0 words</div>
+        </div>
+
+        <!-- Output -->
+        <div>
+            <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
+                        letter-spacing:0.7px; margin-bottom:8px;">Humanized Output</div>
+            <div id="output-box"
+                 style="height:{{ '348' }}px; padding:14px 16px; border:1.5px solid #e2e8f0; border-radius:10px;
+                        font-size:14px; line-height:1.7; background:#f8fafc; overflow-y:auto;
+                        white-space:pre-wrap; color:#1e293b; word-break:break-word;">
+                <span id="output-placeholder" style="color:#94a3b8;">
+                    Your humanized text will appear here after you click Run.
+                </span>
+            </div>
+            <div id="output-count" style="font-size:12px; color:#94a3b8; margin-top:6px; text-align:right;"></div>
+        </div>
+    </div>
+
+    <!-- Message area -->
+    <div id="message" style="margin-top:16px;"></div>
+
+    <!-- Action row -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; flex-wrap:wrap; gap:10px;">
+        <a href="/step2" class="btn btn-secondary">← Improve Profile</a>
+        <div style="display:flex; gap:10px;">
+            <button id="copy-btn" class="btn btn-secondary hidden">Copy Output</button>
+            <button id="run-btn" class="btn btn-primary"
+                    {% if not profile.style_document %}disabled{% endif %}>
+                Run
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ── About Section ── -->
+<div class="card" style="padding:24px 32px;">
+    <h2 style="margin-bottom:12px;">How this works</h2>
+    <ul style="color:#64748b; font-size:14px; line-height:2.1; padding-left:20px;">
+        <li>The AI uses your writing profile to understand your personal style</li>
+        <li>It rewrites the input text to match your vocabulary, sentence rhythm, and tone</li>
+        <li>The core meaning is always preserved — only the voice changes</li>
+        <li>A higher profile confidence (Step 2) produces more accurate results</li>
+        <li>You can run the same text multiple times — each output will be slightly different</li>
+    </ul>
+</div>
+
+<script>
+const inputText   = document.getElementById('input-text');
+const outputBox   = document.getElementById('output-box');
+const runBtn      = document.getElementById('run-btn');
+const copyBtn     = document.getElementById('copy-btn');
+const messageDiv  = document.getElementById('message');
+
+// Live word count on input
+inputText.addEventListener('input', () => {
+    const words = inputText.value.trim() ? inputText.value.trim().split(/\s+/).length : 0;
+    document.getElementById('input-count').textContent = words + ' words';
+});
+
+// ── Run humanizer ──
+runBtn.addEventListener('click', async () => {
+    const text = inputText.value.trim();
+
+    if (!text) {
+        messageDiv.innerHTML = '<div class="alert alert-error">Please paste some text into the input box first.</div>';
+        return;
+    }
+
+    runBtn.disabled = true;
+    runBtn.innerHTML = '<div class="spinner"></div><span>Rewriting…</span>';
+    outputBox.innerHTML = '<span style="color:#94a3b8;">✍️ Rewriting in your voice…</span>';
+    copyBtn.classList.add('hidden');
+    messageDiv.innerHTML = '<div class="alert alert-info">⏳ Humanizing your text… The AI will automatically retry if the score is above 10%. This may take up to 2 minutes.</div>';
+
+    try {
+        const res  = await fetch('/api/humanize', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ text }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+            outputBox.innerHTML = `<span style="color:#b91c1c;">Error: ${data.error}</span>`;
+            messageDiv.innerHTML = `<div class="alert alert-error">❌ ${data.error}</div>`;
+        } else {
+            outputBox.textContent = data.result;
+            const outWords = data.result.trim().split(/\s+/).length;
+            document.getElementById('output-count').textContent = outWords + ' words';
+            copyBtn.classList.remove('hidden');
+
+            const score    = data.score;
+            const attempts = data.attempts;
+            const attemptLabel = attempts === 1 ? '1 pass' : `${attempts} passes`;
+
+            let scoreColor, scoreLabel;
+            if (score <= 5)       { scoreColor = '#15803d'; scoreLabel = 'Excellent'; }
+            else if (score <= 10) { scoreColor = '#15803d'; scoreLabel = 'Passed'; }
+            else if (score <= 25) { scoreColor = '#b45309'; scoreLabel = 'Close'; }
+            else                  { scoreColor = '#b91c1c'; scoreLabel = 'Needs more profile data'; }
+
+            if (data.warning) {
+                messageDiv.innerHTML = `
+                    <div class="alert alert-error">
+                        ⚠️ Best score after ${data.attempts} attempts: <strong>${data.score}%</strong> — still above 10%.
+                        The AI needs more examples of your writing to do better.<br><br>
+                        <strong>To improve results:</strong><br>
+                        → <a href="/step1">Step 1: Upload more of your writing files</a><br>
+                        → <a href="/step2">Step 2: Respond to more writing prompts</a><br><br>
+                        The output above is still usable — it's the best version produced.
+                    </div>`;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        ✓ Done in ${attemptLabel} —
+                        AI score: <strong style="color:${scoreColor}">${score}% (${scoreLabel})</strong>
+                    </div>`;
+            }
+        }
+    } catch {
+        outputBox.innerHTML = '<span style="color:#b91c1c;">Something went wrong. Please try again.</span>';
+        messageDiv.innerHTML = '<div class="alert alert-error">❌ Something went wrong. Make sure the server is still running.</div>';
+    }
+
+    runBtn.disabled = false;
+    runBtn.innerHTML = 'Run';
+});
+
+// ── Copy output to clipboard ──
+copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(outputBox.textContent).then(() => {
+        copyBtn.textContent = '✓ Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy Output'; }, 2000);
+    });
+});
+</script>
+
+{% endblock %}

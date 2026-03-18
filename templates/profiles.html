@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% set active_step = 0 %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:28px; flex-wrap:wrap; gap:16px;">
+    <div>
+        <h1 style="font-size:28px; font-weight:800; letter-spacing:-0.5px; margin-bottom:6px;">Your Profiles</h1>
+        <p style="font-size:15px; color:#64748b;">
+            Each profile learns a different person's voice. Select one to work with, or create a new one.
+            <strong style="color:#1e293b;">{{ profile_count }} / {{ max_profiles }}</strong> profiles used.
+        </p>
+    </div>
+    {% if profile_count < max_profiles %}
+    <button id="new-profile-btn" class="btn btn-primary">+ New Profile</button>
+    {% else %}
+    <div style="font-size:13px; color:#94a3b8; padding:10px 16px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+        Max {{ max_profiles }} profiles reached
+    </div>
+    {% endif %}
+</div>
+
+<!-- New Profile Form (hidden by default) -->
+<div id="new-profile-form" class="card hidden" style="padding:24px; margin-bottom:24px;">
+    <h2 style="margin-bottom:16px;">Create New Profile</h2>
+    <p style="margin-bottom:20px; font-size:14px;">
+        Enter the name of the person whose voice you want to capture —
+        yourself, a historical figure, a public figure, anyone.
+    </p>
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <input id="profile-name-input" type="text" placeholder="e.g. Shakespeare, Abraham Lincoln, Me..."
+               style="flex:1; min-width:220px; padding:11px 16px; border:1.5px solid #e2e8f0; border-radius:9px;
+                      font-size:15px; font-family:inherit; outline:none; transition:border-color 0.15s;"
+               maxlength="40">
+        <button id="create-profile-btn" class="btn btn-primary">Create Profile</button>
+        <button id="cancel-profile-btn" class="btn btn-secondary">Cancel</button>
+    </div>
+    <div id="create-message" style="margin-top:12px;"></div>
+</div>
+
+<!-- Profile Grid -->
+{% if all_profiles %}
+<div id="profiles-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:16px;">
+    {% for p in all_profiles %}
+    <div class="profile-card card" data-id="{{ p.id }}"
+         style="padding:24px; cursor:pointer; transition:all 0.2s; position:relative;
+                {% if p.id == active_id %}border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,0.15);{% endif %}">
+
+        <!-- Active badge -->
+        {% if p.id == active_id %}
+        <div style="position:absolute; top:14px; right:14px; background:#6366f1; color:#fff;
+                    font-size:10px; font-weight:700; padding:3px 9px; border-radius:999px; letter-spacing:0.5px;">
+            ACTIVE
+        </div>
+        {% endif %}
+
+        <!-- Avatar -->
+        <div style="width:52px; height:52px; border-radius:14px; margin-bottom:16px;
+                    background:linear-gradient(135deg, #6366f1, #8b5cf6);
+                    display:flex; align-items:center; justify-content:center;
+                    font-size:22px; font-weight:800; color:#fff; letter-spacing:-1px;">
+            {{ p.name[0].upper() }}
+        </div>
+
+        <div style="font-size:17px; font-weight:700; margin-bottom:4px; padding-right:48px;">{{ p.name }}</div>
+
+        <!-- Percentage bar -->
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <div style="flex:1; height:5px; background:#e2e8f0; border-radius:999px; overflow:hidden;">
+                <div style="width:{{ p.profile_percentage }}%; height:100%;
+                            background:linear-gradient(90deg,#6366f1,#8b5cf6); border-radius:999px;"></div>
+            </div>
+            <div style="font-size:12px; font-weight:700; color:#6366f1; min-width:32px;">{{ p.profile_percentage }}%</div>
+        </div>
+
+        <div style="font-size:12px; color:#94a3b8; margin-bottom:16px;">
+            {{ p.sample_count }} file{% if p.sample_count != 1 %}s{% endif %} ·
+            {{ p.response_count }} prompt{% if p.response_count != 1 %}s{% endif %}
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex; gap:8px;">
+            <a href="/profiles/select/{{ p.id }}" class="btn btn-primary" style="flex:1; justify-content:center; font-size:13px; padding:8px 12px;">
+                {% if p.id == active_id %}Continue{% else %}Select{% endif %}
+            </a>
+            <button class="btn btn-secondary delete-btn" data-id="{{ p.id }}" data-name="{{ p.name }}"
+                    style="font-size:13px; padding:8px 12px; color:#ef4444;"
+                    onclick="event.stopPropagation()">
+                🗑
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<!-- Empty state -->
+<div class="card" style="text-align:center; padding:64px 32px;">
+    <div style="font-size:52px; margin-bottom:16px;">✍️</div>
+    <h2 style="margin-bottom:10px;">No profiles yet</h2>
+    <p style="margin-bottom:28px; max-width:400px; margin-left:auto; margin-right:auto;">
+        Create your first profile to get started. You can build a profile for yourself,
+        a historical figure, or anyone whose writing style you want to capture.
+    </p>
+    <button id="empty-new-btn" class="btn btn-primary">+ Create Your First Profile</button>
+</div>
+{% endif %}
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5);
+            z-index:200; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:16px; padding:32px; max-width:400px; width:90%; text-align:center;">
+        <div style="font-size:40px; margin-bottom:12px;">🗑️</div>
+        <h2 style="margin-bottom:8px;">Delete Profile?</h2>
+        <p id="delete-modal-text" style="color:#64748b; margin-bottom:24px; font-size:15px;"></p>
+        <div style="display:flex; gap:12px; justify-content:center;">
+            <button id="delete-cancel-btn" class="btn btn-secondary">Cancel</button>
+            <button id="delete-confirm-btn" class="btn btn-primary" style="background:#ef4444;">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── New profile form toggle ──
+const newBtn  = document.getElementById('new-profile-btn');
+const emptyBtn = document.getElementById('empty-new-btn');
+const form    = document.getElementById('new-profile-form');
+const cancelBtn = document.getElementById('cancel-profile-btn');
+
+if (newBtn)   newBtn.addEventListener('click',   () => { form.classList.remove('hidden'); document.getElementById('profile-name-input').focus(); });
+if (emptyBtn) emptyBtn.addEventListener('click', () => { form.classList.remove('hidden'); document.getElementById('profile-name-input').focus(); });
+if (cancelBtn) cancelBtn.addEventListener('click', () => form.classList.add('hidden'));
+
+// Focus style on input
+const nameInput = document.getElementById('profile-name-input');
+if (nameInput) {
+    nameInput.addEventListener('focus', () => nameInput.style.borderColor = '#6366f1');
+    nameInput.addEventListener('blur',  () => nameInput.style.borderColor = '#e2e8f0');
+    nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('create-profile-btn').click(); });
+}
+
+// ── Create profile ──
+document.getElementById('create-profile-btn').addEventListener('click', async () => {
+    const name = nameInput.value.trim();
+    const msgDiv = document.getElementById('create-message');
+
+    if (!name) {
+        msgDiv.innerHTML = '<div class="alert alert-error">Please enter a name.</div>';
+        return;
+    }
+
+    const btn = document.getElementById('create-profile-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div><span>Creating…</span>';
+
+    try {
+        const res  = await fetch('/api/profiles/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+            msgDiv.innerHTML = `<div class="alert alert-error">❌ ${data.error}</div>`;
+        } else {
+            window.location.href = '/step1';
+        }
+    } catch {
+        msgDiv.innerHTML = '<div class="alert alert-error">❌ Something went wrong.</div>';
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = 'Create Profile';
+});
+
+// ── Delete profile ──
+let pendingDeleteId = null;
+const modal      = document.getElementById('delete-modal');
+const modalText  = document.getElementById('delete-modal-text');
+const confirmBtn = document.getElementById('delete-confirm-btn');
+const cancelDel  = document.getElementById('delete-cancel-btn');
+
+document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        pendingDeleteId = btn.dataset.id;
+        modalText.textContent = `This will permanently delete the "${btn.dataset.name}" profile and all its data. This cannot be undone.`;
+        modal.style.display = 'flex';
+    });
+});
+
+cancelDel.addEventListener('click',  () => { modal.style.display = 'none'; pendingDeleteId = null; });
+modal.addEventListener('click', e => { if (e.target === modal) { modal.style.display = 'none'; pendingDeleteId = null; } });
+
+confirmBtn.addEventListener('click', async () => {
+    if (!pendingDeleteId) return;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<div class="spinner"></div>';
+
+    try {
+        await fetch(`/api/profiles/delete/${pendingDeleteId}`, { method: 'POST' });
+        window.location.reload();
+    } catch {
+        modal.style.display = 'none';
+    }
+});
+</script>
+
+{% endblock %}
